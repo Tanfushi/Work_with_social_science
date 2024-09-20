@@ -1,0 +1,306 @@
+---
+title: "Age group Kmeans"
+author: "Tanfu Shi"
+date: "2024-05-31"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+"C:\Users\14946\Downloads\MIDJA1_Squad_Data_USJAPANwellbeing.sav"
+```{r}
+library(mclust)
+library(tidyLPA)
+library(tidyverse)
+library(haven)
+library(stats)
+library(factoextra)
+library(cluster)
+set.seed(100)
+MIDJA1_Squad_Data_USJAPANwellbeing<-read_sav("C:/Users/14946/Downloads/MIDJA1_Squad_Data_USJAPANwellbeing.sav")
+```
+1.data cleanning and group
+```{r}
+data<-MIDJA1_Squad_Data_USJAPANwellbeing%>%
+  mutate(group = case_when(
+    J1SQ2AGE >= 20 & J1SQ2AGE <= 36 ~ "YOUNGEST",
+    J1SQ2AGE >= 37 & J1SQ2AGE <= 45 ~ "MIDDLE",
+    J1SQ2AGE >= 46 ~ "OLDEST",
+    TRUE ~ NA_character_
+  ))
+data_all<-data%>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy","MIDJA_IDS")%>%
+  na.omit()
+Kmeans_all<-data_all%>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy")%>%
+  kmeans(centers = 4, nstart = 25)
+data_young<-data%>%
+  filter(group=="YOUNGEST")%>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy","MIDJA_IDS")%>%
+  na.omit()
+Kmeans_young<-data_young%>%
+    dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy")%>%
+  kmeans(centers = 4, nstart = 25)
+data_middle<-data%>%
+  filter(group=="MIDDLE")%>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy","MIDJA_IDS")%>%
+  na.omit()
+Kmeans_middle<-data_middle%>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy")%>%
+  kmeans(centers = 4, nstart = 25)
+data_old<-data%>%
+  filter(group=="OLDEST")%>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy","MIDJA_IDS")%>%
+  na.omit()
+Kmeans_old<-data_old%>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy")%>%
+  kmeans(centers = 4, nstart = 25)
+```
+2.visualization of Groups of age
+```{r}
+data_young$Kmeans<-Kmeans_young$cluster
+
+data_middle$Kmeans<-Kmeans_middle$cluster
+
+data_old$Kmeans<-Kmeans_old$cluster
+
+data_all$Kmeans<-Kmeans_all$cluster
+
+data_all <- left_join(data_all, MIDJA1_Squad_Data_USJAPANwellbeing, by = "MIDJA_IDS")
+data_young <- left_join(data_young, MIDJA1_Squad_Data_USJAPANwellbeing, by = "MIDJA_IDS")
+data_middle <- left_join(data_middle, MIDJA1_Squad_Data_USJAPANwellbeing, by = "MIDJA_IDS")
+data_old <- left_join(data_old, MIDJA1_Squad_Data_USJAPANwellbeing, by = "MIDJA_IDS")
+
+```
+YOUNG GROUP
+```{r}
+data_elbow<-data_old%>%
+      dplyr::select("Zcommunion.x","ZMyMIDJA1_Autonomy.x")%>%
+      na.omit()
+fviz_nbclust(data_elbow, kmeans, method = "wss") +
+  geom_vline(xintercept = 4, linetype = 2) + # 假设最佳K值为4
+  labs(subtitle = "Elbow Method")
+
+```
+ASW
+```{r}
+sil_width <- numeric(10)
+for (k in 2:10) {  # silhouette_score在n_clusters>1时才有效
+  kmeans_result <- kmeans(data_elbow, centers = k, nstart = 25)
+  sil <- silhouette(kmeans_result$cluster, dist(data_elbow))
+  sil_width[k] <- mean(sil[, 3])
+  cat("Number of clusters:", k, "Average Silhouette Width:", sil_width[k], "\n")
+}
+
+fviz_nbclust(data_elbow, kmeans, method = "silhouette") +
+  labs(subtitle = "Silhouette Method")
+```
+
+gap statistics
+```{r}
+gap_stat <- clusGap(data_elbow, FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+```
+
+Standardize 
+```{r}
+data_young <- data_young %>%
+  mutate(Kmeans = case_when(
+    Kmeans == 1 ~ "Q2",
+    Kmeans == 2 ~ "Q1",
+    Kmeans == 3 ~ "Q4",
+    Kmeans == 4 ~ "Q3",
+    TRUE ~ as.character(Kmeans)
+  ))
+data_young$Kmeans <- as.factor(data_young$Kmeans)
+ggplot(data_young, aes(x = Zcommunion.x, y = ZMyMIDJA1_Autonomy.x, color = Kmeans)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the JP YOUNG data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+MIDDLE GROUP
+```{r}
+data_middle <- data_middle %>%
+  mutate(Kmeans = case_when(
+    Kmeans == 1 ~ "Q1",
+    Kmeans == 2 ~ "Q3",
+    Kmeans == 3 ~ "Q4",
+    Kmeans == 4 ~ "Q2",
+    TRUE ~ as.character(Kmeans)
+  ))
+data_middle$Kmeans <- as.factor(data_middle$Kmeans)
+ggplot(data_middle, aes(x = Zcommunion.x, y = ZMyMIDJA1_Autonomy.x, color = Kmeans)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the JP MIDDLE data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+OLD GROUP
+```{r}
+data_old <- data_old %>%
+  mutate(Kmeans = case_when(
+    Kmeans == 1 ~ "Q2",
+    Kmeans == 2 ~ "Q4",
+    Kmeans == 3 ~ "Q1",
+    Kmeans == 4 ~ "Q3",
+    TRUE ~ as.character(Kmeans)
+  ))
+data_old$Kmeans <- as.factor(data_old$Kmeans)
+ggplot(data_old, aes(x = Zcommunion.x, y = ZMyMIDJA1_Autonomy.x, color = Kmeans)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the JP OLD data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+DATA ALL
+```{r}
+data_all <- data_all %>%
+  mutate(Kmeans = case_when(
+    Kmeans == 1 ~ "Q4",
+    Kmeans == 2 ~ "Q2",
+    Kmeans == 3 ~ "Q1",
+    Kmeans == 4 ~ "Q3",
+    TRUE ~ as.character(Kmeans)
+  ))
+data_all$Kmeans <- as.factor(data_all$Kmeans)
+ggplot(data_all, aes(x = Zcommunion.x, y = ZMyMIDJA1_Autonomy.x, color = Kmeans)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the JP OLD data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+
+centers
+```{r}
+comparison_kmeans<-bind_rows(as.data.frame(Kmeans_young$centers) %>% 
+                        mutate(Group = "young")%>%
+                        mutate(Autonomy=ZMyMIDJA1_Autonomy),
+                      as.data.frame(Kmeans_middle$centers) %>% 
+                        mutate(Group = "middle")%>%
+                        mutate(Autonomy=ZMyMIDJA1_Autonomy),
+                      as.data.frame(Kmeans_old$centers) %>% 
+                        mutate(Group = "old")%>%
+                        mutate(Autonomy=ZMyMIDJA1_Autonomy))%>%
+            select(Zcommunion,Autonomy,Group)
+
+ggplot(comparison_kmeans, aes(x = Zcommunion, y = Autonomy, color = Group)) +
+  geom_point(size = 3) +
+  labs(x = "ZCommunion", y = "ZAutonomy", title = "comparison of centers") +
+  scale_color_manual(values = c("young" = "green", "middle"="red","old"="yellow"))+
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-2, 2)) + 
+  scale_y_continuous(limits = c(-2, 2))   
+```
+
+ANOVA
+ALL
+```{r}
+means <- aggregate(J1SPWBS1 ~ Kmeans, data = data_all, FUN=mean)
+ggplot(means, aes(x=Kmeans, y=J1SPWBS1, fill=Kmeans)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  labs(title="Mean J1SPWBS1 by Kmeans Group", x="Kmeans Group", y="Mean J1SPWBS1") +
+  theme_minimal()
+data_all$Kmeans <- as.factor(data_all$Kmeans)
+anova_result <- aov(J1SPWBS1 ~ Kmeans, data = data_all)
+summary(anova_result)
+tukey_test <- TukeyHSD(anova_result)
+print(tukey_test)
+plot(tukey_test, las=2)
+```
+YOUNG
+```{r}
+means <- aggregate(J1SPWBS1 ~ Kmeans, data = data_young, FUN=mean)
+ggplot(means, aes(x=Kmeans, y=J1SPWBS1, fill=Kmeans)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  labs(title="Mean J1SPWBS1 by Kmeans Group", x="Kmeans Group", y="Mean J1SPWBS1") +
+  theme_minimal()
+data_young$Kmeans <- as.factor(data_young$Kmeans)
+anova_result <- aov(J1SPWBS1 ~ Kmeans, data = data_young)
+summary(anova_result)
+tukey_test <- TukeyHSD(anova_result)
+print(tukey_test)
+plot(tukey_test, las=2)
+```
+
+middle
+```{r}
+means <- aggregate(J1SPWBS1~ Kmeans, data = data_middle, FUN=mean)
+ggplot(means, aes(x=Kmeans, y=J1SPWBS1, fill=Kmeans)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  labs(title="Mean J1SPWBS1 by Kmeans Group", x="Kmeans Group", y="Mean J1SPWBS1") +
+  theme_minimal()
+data_middle$Kmeans <- as.factor(data_middle$Kmeans)
+anova_result <- aov(J1SPWBS1 ~ Kmeans, data = data_middle)
+summary(anova_result)
+tukey_test <- TukeyHSD(anova_result)
+print(tukey_test)
+plot(tukey_test, las=2)
+```
+old
+```{r}
+means <- aggregate(J1SPWBS1 ~ Kmeans, data = data_old, FUN=mean)
+ggplot(means, aes(x=Kmeans, y=J1SPWBS1, fill=Kmeans)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  labs(title="Mean J1SPWBS1 by Kmeans Group", x="Kmeans Group", y="Mean J1SPWBS1") +
+  theme_minimal()
+data_old$Kmeans <- as.factor(data_old$Kmeans)
+anova_result <- aov(J1SPWBS1 ~ Kmeans, data = data_old)
+summary(anova_result)
+tukey_test <- TukeyHSD(anova_result)
+print(tukey_test)
+plot(tukey_test, las=2)
+```

@@ -1,0 +1,279 @@
+---
+title: "Grain communion"
+author: "Tanfu Shi"
+date: "2024-08-03"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+data clean
+```{r}
+library(mclust)
+library(tidyLPA)
+library(tidyverse)
+library(haven)
+library(stats)
+set.seed(100)
+combined_data<-read_sav("C:/Users/14946/Downloads/Midus1&2Merge_Squad_Wellbeing_Tanfu_Data_new.sav")
+```
+select all the factors:
+```{r}
+Communion_us1 <- combined_data %>%
+  select(A1SM2_rev, A1SM3_rev, A1SM4_rev, A1SM5_rev, A1SM6, A1SM7, A1SM8, A1SM9,
+         A1SM11_rev, A1SM12_rev, A1SM13_rev, A1SM14_rev, A1SM15, A1SM16, A1SM17, A1SM18,
+         A1SP11_rev, A1SP12_rev, A1SP14_rev, A1SP15_rev, A1SP17, A1SP20, A1SP21, A1SP22) %>%
+  na.omit() %>%
+  mutate(
+    family_pos = (A1SM6 + A1SM7 + A1SM8 + A1SM9) / 4,
+    family_neg = (A1SM2_rev + A1SM3_rev + A1SM4_rev + A1SM5_rev) / 4,
+    friends_pos = (A1SM15 + A1SM16 + A1SM17 + A1SM18) / 4,
+    friends_neg = (A1SM11_rev + A1SM12_rev + A1SM13_rev + A1SM14_rev) / 4,
+    spouse_pos = (A1SP17 + A1SP20 + A1SP21 + A1SP22) / 4,
+    spouse_neg = (A1SP11_rev + A1SP12_rev + A1SP14_rev + A1SP15_rev) / 4
+  )%>%
+  summarize(
+    family_pos_avg = mean(family_pos),
+    family_neg_avg = mean(family_neg),
+    friends_pos_avg = mean(friends_pos),
+    friends_neg_avg = mean(friends_neg),
+    spouse_pos_avg = mean(spouse_pos),
+    spouse_neg_avg = mean(spouse_neg)
+  )
+
+Communion_us1_long <- pivot_longer(
+  Communion_us1,
+  cols = everything(),
+  names_to = "Category",
+  values_to = "Average"
+)
+Communion_us1_long <- Communion_us1_long %>%
+  mutate(Percentage = round(Average / sum(Average) * 100, 1))
+
+ggplot(Communion_us1_long, aes(x = "", y = Average, fill = Category)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar(theta = "y") +
+  theme_void() +
+  labs(title = "Average Scores for Communion_us1 Categories") +
+  geom_text(aes(label = paste0(Percentage, "%")), 
+            position = position_stack(vjust = 0.5)) +
+  scale_fill_brewer(palette = "Pastel1")
+
+Communion_us2 <- combined_data %>%
+  select(B1SJ2A_rev, B1SJ2B_rev, B1SJ2C_rev, B1SJ2D_rev, B1SJ2G, B1SJ2H, B1SJ2I, B1SJ2J,
+         B1SJ4A_rev, B1SJ4B_rev, B1SJ4C_rev, B1SJ4D_rev, B1SJ4E, B1SJ4F, B1SJ4G, B1SJ4H,
+         B1SL11A_rev, B1SL11B_rev, B1SL11D_rev, B1SL11E_rev, B1SL11G, B1SL11J, B1SL11K, B1SL11L) %>%
+  na.omit() %>%
+  mutate(
+    family_pos = (B1SJ2G + B1SJ2H + B1SJ2I + B1SJ2J) / 4,
+    family_neg = (B1SJ2A_rev + B1SJ2B_rev + B1SJ2C_rev + B1SJ2D_rev) / 4,
+    friends_pos = (B1SJ4E + B1SJ4F + B1SJ4G + B1SJ4H) / 4,
+    friends_neg = (B1SJ4A_rev + B1SJ4B_rev + B1SJ4C_rev + B1SJ4D_rev) / 4,
+    spouse_pos = (B1SL11G + B1SL11J + B1SL11K + B1SL11L) / 4,
+    spouse_neg = (B1SL11A_rev + B1SL11B_rev + B1SL11D_rev + B1SL11E_rev) / 4
+  )%>%
+  summarize(
+    family_pos_avg = mean(family_pos),
+    family_neg_avg = mean(family_neg),
+    friends_pos_avg = mean(friends_pos),
+    friends_neg_avg = mean(friends_neg),
+    spouse_pos_avg = mean(spouse_pos),
+    spouse_neg_avg = mean(spouse_neg)
+  )
+Communion_us2_long <- pivot_longer(
+  Communion_us2,
+  cols = everything(),
+  names_to = "Category",
+  values_to = "Average"
+)
+Communion_us2_long <- Communion_us2_long %>%
+  mutate(Percentage = round(Average / sum(Average) * 100, 1))
+ggplot(Communion_us2_long, aes(x = "", y = Average, fill = Category)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar(theta = "y") +
+  theme_void() +
+  labs(title = "Average Scores for Communion_us2 Categories") +
+  geom_text(aes(label = paste0(Percentage, "%")), 
+            position = position_stack(vjust = 0.5)) +
+  scale_fill_brewer(palette = "Pastel1")
+```
+
+generate a tree
+```{r}
+library(DiagrammeR)
+
+# Calculate the averages and proportions for Communion_us1
+Communion_us1 <- combined_data %>%
+  select(A1SM2_rev, A1SM3_rev, A1SM4_rev, A1SM5_rev, A1SM6, A1SM7, A1SM8, A1SM9,
+         A1SM11_rev, A1SM12_rev, A1SM13_rev, A1SM14_rev, A1SM15, A1SM16, A1SM17, A1SM18,
+         A1SP11_rev, A1SP12_rev, A1SP14_rev, A1SP15_rev, A1SP17, A1SP20, A1SP21, A1SP22) %>%
+  na.omit() %>%
+  mutate(
+    family_pos = (A1SM6 + A1SM7 + A1SM8 + A1SM9) / 4,
+    family_neg = (A1SM2_rev + A1SM3_rev + A1SM4_rev + A1SM5_rev) / 4,
+    friends_pos = (A1SM15 + A1SM16 + A1SM17 + A1SM18) / 4,
+    friends_neg = (A1SM11_rev + A1SM12_rev + A1SM13_rev + A1SM14_rev) / 4,
+    spouse_pos = (A1SP17 + A1SP20 + A1SP21 + A1SP22) / 4,
+    spouse_neg = (A1SP11_rev + A1SP12_rev + A1SP14_rev + A1SP15_rev) / 4
+  ) %>%
+  summarize(
+    family_pos_avg = mean(family_pos),
+    family_neg_avg = mean(family_neg),
+    friends_pos_avg = mean(friends_pos),
+    friends_neg_avg = mean(friends_neg),
+    spouse_pos_avg = mean(spouse_pos),
+    spouse_neg_avg = mean(spouse_neg)
+  ) %>%
+  mutate(
+    family_avg = family_pos_avg + family_neg_avg,
+    friends_avg = friends_pos_avg + friends_neg_avg,
+    spouse_avg = spouse_pos_avg + spouse_neg_avg
+  )
+
+# Calculate percentages of each category and subcategory of the total
+total_avg <- sum(Communion_us1$family_avg, Communion_us1$friends_avg, Communion_us1$spouse_avg)
+family_avg <- round(Communion_us1$family_avg / total_avg * 100, 1)
+friends_avg <- round(Communion_us1$friends_avg / total_avg * 100, 1)
+spouse_avg <- round(Communion_us1$spouse_avg / total_avg * 100, 1)
+
+friends_pos_avg <- round(Communion_us1$friends_pos_avg / total_avg * 100, 1)
+friends_neg_avg <- round(Communion_us1$friends_neg_avg / total_avg * 100, 1)
+
+family_pos_avg <- round(Communion_us1$family_pos_avg / total_avg * 100, 1)
+family_neg_avg <- round(Communion_us1$family_neg_avg / total_avg * 100, 1)
+
+spouse_pos_avg <- round(Communion_us1$spouse_pos_avg / total_avg * 100, 1)
+spouse_neg_avg <- round(Communion_us1$spouse_neg_avg / total_avg * 100, 1)
+
+# Create the tree diagram with proportions using DiagrammeR
+grViz(sprintf("
+digraph Tree {
+  graph [layout = dot, rankdir = TB, nodesep = 0.8, ranksep = 1.2]
+  
+  node [shape = box, style = filled, fontsize = 14, width = 1.5, height = 0.75]
+  
+  A [label = 'Communion', fillcolor = '#d9eaf3']
+  
+  B [label = 'friends (%s%%)', fillcolor = '#ffed6f']
+  C [label = 'family (%s%%)', fillcolor = '#bc80bd']
+  D [label = 'spouse (%s%%)', fillcolor = '#8dd3c7']
+  
+  B1 [label = 'friends_pos (%s%%)', fillcolor = '#fdb462']
+  B2 [label = 'friends_neg (%s%%)', fillcolor = '#fb8072']
+  
+  C1 [label = 'family_pos (%s%%)', fillcolor = '#80b1d3']
+  C2 [label = 'family_neg (%s%%)', fillcolor = '#b3de69']
+  
+  D1 [label = 'spouse_pos (%s%%)', fillcolor = '#bebada']
+  D2 [label = 'spouse_neg (%s%%)', fillcolor = '#fccde5']
+  
+  A -> B
+  A -> C
+  A -> D
+  
+  B -> B1
+  B -> B2
+  
+  C -> C1
+  C -> C2
+  
+  D -> D1
+  D -> D2
+}
+", 
+  friends_avg, family_avg, spouse_avg, 
+  friends_pos_avg, friends_neg_avg, 
+  family_pos_avg, family_neg_avg, 
+  spouse_pos_avg, spouse_neg_avg))
+```
+US2
+```{r}
+Communion_us2 <- combined_data %>%
+  select(B1SJ2A_rev, B1SJ2B_rev, B1SJ2C_rev, B1SJ2D_rev, B1SJ2G, B1SJ2H, B1SJ2I, B1SJ2J,
+         B1SJ4A_rev, B1SJ4B_rev, B1SJ4C_rev, B1SJ4D_rev, B1SJ4E, B1SJ4F, B1SJ4G, B1SJ4H,
+         B1SL11A_rev, B1SL11B_rev, B1SL11D_rev, B1SL11E_rev, B1SL11G, B1SL11J, B1SL11K, B1SL11L) %>%
+  na.omit() %>%
+  mutate(
+    family_pos = (B1SJ2G + B1SJ2H + B1SJ2I + B1SJ2J) / 4,
+    family_neg = (B1SJ2A_rev + B1SJ2B_rev + B1SJ2C_rev + B1SJ2D_rev) / 4,
+    friends_pos = (B1SJ4E + B1SJ4F + B1SJ4G + B1SJ4H) / 4,
+    friends_neg = (B1SJ4A_rev + B1SJ4B_rev + B1SJ4C_rev + B1SJ4D_rev) / 4,
+    spouse_pos = (B1SL11G + B1SL11J + B1SL11K + B1SL11L) / 4,
+    spouse_neg = (B1SL11A_rev + B1SL11B_rev + B1SL11D_rev + B1SL11E_rev) / 4
+  ) %>%
+  summarize(
+    family_pos_avg = mean(family_pos),
+    family_neg_avg = mean(family_neg),
+    friends_pos_avg = mean(friends_pos),
+    friends_neg_avg = mean(friends_neg),
+    spouse_pos_avg = mean(spouse_pos),
+    spouse_neg_avg = mean(spouse_neg)
+  ) %>%
+  mutate(
+    family_avg = family_pos_avg + family_neg_avg,
+    friends_avg = friends_pos_avg + friends_neg_avg,
+    spouse_avg = spouse_pos_avg + spouse_neg_avg
+  )
+
+# Calculate percentages of each category and subcategory of the total
+total_avg2 <- sum(Communion_us2$family_avg, Communion_us2$friends_avg, Communion_us2$spouse_avg)
+family_avg2 <- round(Communion_us2$family_avg / total_avg2 * 100, 1)
+friends_avg2 <- round(Communion_us2$friends_avg / total_avg2 * 100, 1)
+spouse_avg2 <- round(Communion_us2$spouse_avg / total_avg2 * 100, 1)
+
+friends_pos_avg2 <- round(Communion_us2$friends_pos_avg / total_avg2 * 100, 1)
+friends_neg_avg2 <- round(Communion_us2$friends_neg_avg / total_avg2 * 100, 1)
+
+family_pos_avg2 <- round(Communion_us2$family_pos_avg / total_avg2 * 100, 1)
+family_neg_avg2 <- round(Communion_us2$family_neg_avg / total_avg2 * 100, 1)
+
+spouse_pos_avg2 <- round(Communion_us2$spouse_pos_avg / total_avg2 * 100, 1)
+spouse_neg_avg2 <- round(Communion_us2$spouse_neg_avg / total_avg2 * 100, 1)
+
+# Create the tree diagram with proportions using DiagrammeR
+grViz(sprintf("
+digraph Tree {
+  graph [layout = dot, rankdir = TB, nodesep = 0.8, ranksep = 1.2]
+  
+  node [shape = box, style = filled, fontsize = 14, width = 1.5, height = 0.75]
+  
+  A [label = 'Communion', fillcolor = '#d9eaf3']
+  
+  B [label = 'friends (%s%%)', fillcolor = '#ffed6f']
+  C [label = 'family (%s%%)', fillcolor = '#bc80bd']
+  D [label = 'spouse (%s%%)', fillcolor = '#8dd3c7']
+  
+  B1 [label = 'friends_pos (%s%%)', fillcolor = '#fdb462']
+  B2 [label = 'friends_neg (%s%%)', fillcolor = '#fb8072']
+  
+  C1 [label = 'family_pos (%s%%)', fillcolor = '#80b1d3']
+  C2 [label = 'family_neg (%s%%)', fillcolor = '#b3de69']
+  
+  D1 [label = 'spouse_pos (%s%%)', fillcolor = '#bebada']
+  D2 [label = 'spouse_neg (%s%%)', fillcolor = '#fccde5']
+  
+  A -> B
+  A -> C
+  A -> D
+  
+  B -> B1
+  B -> B2
+  
+  C -> C1
+  C -> C2
+  
+  D -> D1
+  D -> D2
+}
+", 
+  friends_avg2, family_avg2, spouse_avg2, 
+  friends_pos_avg2, friends_neg_avg2, 
+  family_pos_avg2, family_neg_avg2, 
+  spouse_pos_avg2, spouse_neg_avg2))
+```
+

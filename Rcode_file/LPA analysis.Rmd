@@ -1,0 +1,280 @@
+---
+title: "LPA analysis"
+author: "Tanfu Shi"
+date: "2024-04-26"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+package
+```{r}
+library(mclust)
+library(tidyLPA)
+library(tidyverse)
+library(haven)
+set.seed(100)
+Midus1_Squad_Data_USJAPANwellbeing<-read_sav("C:/Users/14946/Downloads/Midus1_Squad_Data_USJAPANwellbeing.sav")
+MIDJA1_Squad_Data_USJAPANwellbeing<-read_sav("C:/Users/14946/Downloads/MIDJA1_Squad_Data_USJAPANwellbeing.sav")
+```
+
+
+1.import data
+```{r}
+
+data_us <- Midus1_Squad_Data_USJAPANwellbeing%>%
+  dplyr::select("Zcommunion","ZMyMidus1Autonomy","M2ID")%>%
+  na.omit()
+
+data_jp <- MIDJA1_Squad_Data_USJAPANwellbeing%>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy","MIDJA_IDS")%>%
+  na.omit()
+```
+2. Use LPA model
+```{r}
+model_us <- data_us %>%
+  dplyr::select("Zcommunion","ZMyMidus1Autonomy")%>%
+  estimate_profiles(n_profiles = 4, models = 2, package = "mclust")
+clustering_us<-get_data(model_us)
+
+model_jp <- data_jp %>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy")%>%
+  estimate_profiles(n_profiles = 4, models = 2, package = "mclust")
+clustering_jp<-get_data(model_jp)
+```
+3. data cleaning and combining.
+```{r}
+data_us$class<-clustering_us$Class
+data_us <- left_join(data_us, Midus1_Squad_Data_USJAPANwellbeing, by = "M2ID")
+data_jp$class<-clustering_jp$Class
+data_jp <- left_join(data_jp, MIDJA1_Squad_Data_USJAPANwellbeing, by = "MIDJA_IDS")
+
+data_us <- data_us %>%
+  mutate(class = case_when(
+    class == 1 ~ "Q2",
+    class == 2 ~ "Q1",
+    class == 3 ~ "Q4",
+    class == 4 ~ "Q3",
+    TRUE ~ as.character(class)  
+  ))
+
+data_jp <- data_jp %>%
+  mutate(class = case_when(
+    class == 1 ~ "Q3",
+    class == 2 ~ "Q2",
+    class == 3 ~ "Q4",
+    class == 4 ~ "Q1",
+    TRUE ~ as.character(class) 
+  ))
+
+```
+For different clusters, we make some basic statistical analysis:
+
+dad
+```{r}
+comparison_LPA<-bind_rows(group_centers <- data_us %>%
+  group_by(class) %>%  
+  summarise(
+    Zcommunion = mean(Zcommunion.x, na.rm = TRUE),
+    Autonomy = mean(ZMyMidus1Autonomy.x, na.rm = TRUE)  
+  )%>%
+    mutate(Country = "US")
+,
+                          data_jp %>% 
+                        group_by(class) %>%  
+  summarise(
+    Zcommunion = mean(Zcommunion.x, na.rm = TRUE),
+    Autonomy = mean(ZMyMIDJA1_Autonomy.x, na.rm = TRUE)  
+  )%>%
+  mutate(Country = "JP"))
+
+ggplot(comparison_LPA, aes(x = Zcommunion, y = Autonomy, color = Country)) +
+  geom_point(size = 3) +
+  labs(x = "Communion", y = "Autonomy", title = "comparison of centers") +
+  scale_color_manual(values = c("US" = "blue", "JP"="red"))+
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-2, 2)) + 
+  scale_y_continuous(limits = c(-2, 2))   
+```
+data visualization
+```{r}
+averages_jp <- data_jp %>%
+  group_by(class) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+averages_us <- data_us %>%
+  group_by(class) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+averages_jp_long <- pivot_longer(averages_jp, cols = class, names_to = "variable", values_to = "value")
+averages_us_long <- pivot_longer(averages_us, cols = class, names_to = "variable", values_to = "value")
+
+averages_jp_long$country <- "JP"
+averages_us_long$country <- "US"
+
+combined_data <- rbind(averages_us_long%>%
+                         select(posMINUSnefaffect,A1SSATIS,A1SPWBG,A1SPWBU,A1SPWBS,value,country),
+                       averages_jp_long%>%
+                         select(posMINUSnefaffect=posMinusnegaffect,A1SSATIS=J1SSATIS,A1SPWBG=J1SPWBG1,A1SPWBU=J1SPWBU1,A1SPWBS=J1SPWBS1,value,country))
+```
+data
+```{r}
+library(reshape2)
+data_long <- melt(combined_data, id.vars = c("value", "country"), variable.name = "variable", value.name = "measurement")
+
+p <- ggplot(data_long, aes(x = factor(value), y = measurement, fill = country)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("US" = "blue", "JP" = "red")) +
+  facet_wrap(~ variable, scales = "free_y") +  
+  labs(x = "LPA Clusters", y = "Measurement") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5),
+        strip.text.x = element_text(size = 10, face = "bold"),  # 
+        legend.position = "bottom") 
+
+print(p)
+```
+
+Hypothesis test("Zcommunion"):
+```{r}
+t.test(data_us[data_us$class == "Q1", "Zcommunion.x"], data_jp[data_jp$class == "Q1", "Zcommunion.x"], var.equal = TRUE)
+t.test(data_us[data_us$class == "Q2", "Zcommunion.x"], data_jp[data_jp$class == "Q2", "Zcommunion.x"], var.equal = TRUE)
+t.test(data_us[data_us$class == "Q3", "Zcommunion.x"], data_jp[data_jp$class == "Q3", "Zcommunion.x"], var.equal = TRUE)
+t.test(data_us[data_us$class == "Q4", "Zcommunion.x"], data_jp[data_jp$class == "Q4", "Zcommunion.x"], var.equal = TRUE)
+```
+Hypothesis test("Zcommunion"):
+```{r}
+t.test(data_us[data_us$class == "Q1", "ZMyMidus1Autonomy.x"], data_jp[data_jp$class == "Q1", "ZMyMIDJA1_Autonomy.x"], var.equal = TRUE)
+t.test(data_us[data_us$class == "Q2", "ZMyMidus1Autonomy.x"], data_jp[data_jp$class == "Q2", "ZMyMIDJA1_Autonomy.x"], var.equal = TRUE)
+t.test(data_us[data_us$class == "Q3", "ZMyMidus1Autonomy.x"], data_jp[data_jp$class == "Q3", "ZMyMIDJA1_Autonomy.x"], var.equal = TRUE)
+t.test(data_us[data_us$class == "Q4", "ZMyMidus1Autonomy.x"], data_jp[data_jp$class == "Q4", "ZMyMIDJA1_Autonomy.x"], var.equal = TRUE)
+```
+
+4.PLOT fo both US and JP
+```{r}
+data_us$class <- as.factor(data_us$class)
+ggplot(data_us, aes(x = Zcommunion.x, y = ZMyMidus1Autonomy.x, color = class)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the US data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+
+```
+
+Japan
+```{r}
+data_jp$class <- as.factor(data_jp$class)
+ggplot(data_jp, aes(x = Zcommunion.x, y = ZMyMIDJA1_Autonomy.x, color = class)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  # adjust width and height to get the desired amount of jitter
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the JP data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )+
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+5. ANOVA analysis
+1)the US
+```{r}
+data_jp$class <- as.factor(data_jp$class) 
+data_us$class <- as.factor(data_us$class) 
+
+result_A1SSATIS <- aov(A1SSATIS ~ class +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+result_posMINUSnefaffect <- aov(posMINUSnefaffect ~ class +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+result_A1SPWBG <- aov(A1SPWBG ~ class +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+result_A1SPWBU <- aov(A1SPWBU ~ class +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+result_A1SPWBS <- aov(A1SPWBS ~ class +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+summary(result_posMINUSnefaffect)
+summary(result_A1SSATIS)
+summary(result_A1SPWBG)
+summary(result_A1SPWBU)
+summary(result_A1SPWBS)
+```
+Visualization
+```{r}
+summary_stats <- function(aov_model, factor_name) {
+  sm <- summary(aov_model)
+  terms <- sm[[1]]  
+  if (is.null(terms)) {
+    return(data.frame(Factor = NA, F_Value = NA, P_Value = NA))
+  }
+
+  f_values <- terms[["F value"]]
+  p_values <- terms[["Pr(>F)"]]
+  data.frame(
+    Factor = rownames(terms),
+    F_Value = f_values,
+    P_Value = p_values
+  )
+}
+
+stats_A1SSATIS <- summary_stats(result_A1SSATIS)
+stats_posMINUSnefaffect <- summary_stats(result_posMINUSnefaffect)
+stats_A1SPWBG <- summary_stats(result_A1SPWBG)
+stats_A1SPWBU <- summary_stats(result_A1SPWBU)
+stats_A1SPWBS <- summary_stats(result_A1SPWBS)
+anova_results <- rbind(stats_A1SSATIS, stats_posMINUSnefaffect, stats_A1SPWBG, stats_A1SPWBU, stats_A1SPWBS)
+print(anova_results)
+
+```
+Tukey
+```{r}
+tukey_A1SSATIS <- TukeyHSD(result_A1SSATIS, "class")
+tukey_posMINUSnefaffect <- TukeyHSD(result_posMINUSnefaffect, "class")
+tukey_A1SPWBG <- TukeyHSD(result_A1SPWBG, "class")
+tukey_A1SPWBU <- TukeyHSD(result_A1SPWBU, "class")
+tukey_A1SPWBS <- TukeyHSD(result_A1SPWBS, "class")
+plot(tukey_posMINUSnefaffect, las = 1)
+plot(tukey_A1SSATIS, las = 1)
+plot(tukey_A1SPWBG, las = 1)
+plot(tukey_A1SPWBU, las = 1)
+plot(tukey_A1SPWBS, las = 1)
+```
+
+6. Best model selection
+```{r}
+library(corrplot)
+cor_matrix <- cor(data_us%>%
+                    select("A1SPWBS","A1SCHRON", "A1PRAGE_2019", "A1PRSEX", "A1PB1", "A1SAGREE", "A1SEXTRA", "A1SNEURO", "A1SCONS", "A1SOPEN")%>%
+                    na.omit()
+                  )
+
+corrplot(cor_matrix, method = "circle", type="lower", order = "hclust",
+         tl.col = "black", tl.srt = 45, 
+         col = colorRampPalette(c("#6D9EC1", "white", "#E46726"))(100))
+```
+VIF caculation
+```{r}
+library(car)
+vif_result <- vif(lm(A1SSATIS ~ A1SCHRON + A1PRAGE_2019 + A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us))
+print(vif_result)
+```
+

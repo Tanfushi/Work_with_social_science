@@ -1,0 +1,294 @@
+---
+title: "Kmeans and GMM"
+author: "Tanfu Shi"
+date: "2024-05-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r cars}
+library(mclust)
+library(tidyLPA)
+library(tidyverse)
+library(haven)
+library(stats)
+set.seed(100)
+Midus1_Squad_Data_USJAPANwellbeing<-read_sav("C:/Users/14946/Downloads/Midus1_Squad_Data_USJAPANwellbeing.sav")
+MIDJA1_Squad_Data_USJAPANwellbeing<-read_sav("C:/Users/14946/Downloads/MIDJA1_Squad_Data_USJAPANwellbeing.sav")
+```
+1.data cleaning and model using
+```{r}
+data_us <- Midus1_Squad_Data_USJAPANwellbeing%>%
+  dplyr::select("Zcommunion","ZMyMidus1Autonomy","M2ID")%>%
+  na.omit()
+
+data_jp <- MIDJA1_Squad_Data_USJAPANwellbeing%>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy","MIDJA_IDS")%>%
+  na.omit()
+
+Kmeans_us <- data_us %>%
+  dplyr::select("Zcommunion","ZMyMidus1Autonomy")%>%
+  kmeans(centers = 4, nstart = 25)
+Kmeans_jp <- data_jp %>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy")%>%
+  kmeans(centers = 4, nstart = 25)
+
+gmm_us <- data_us %>%
+  dplyr::select("Zcommunion","ZMyMidus1Autonomy")%>%
+  Mclust(G = 4)
+gmm_jp <- data_jp %>%
+  dplyr::select("Zcommunion","ZMyMIDJA1_Autonomy")%>%
+  Mclust(G = 4)
+```
+```{r}
+data_us$Kmeans<-Kmeans_us$cluster
+data_us$GMM<-gmm_us$classification
+data_us <- left_join(data_us, Midus1_Squad_Data_USJAPANwellbeing, by = "M2ID")
+data_jp$Kmeans<-Kmeans_jp$cluster
+data_jp$GMM<-gmm_jp$classification
+data_jp <- left_join(data_jp, MIDJA1_Squad_Data_USJAPANwellbeing, by = "MIDJA_IDS")
+```
+
+2. visualization on mapping plots
+1)Kmeans 
+US
+```{r}
+data_us <- data_us %>%
+  mutate(Kmeans = case_when(
+    Kmeans == 1 ~ "Q3",
+    Kmeans == 2 ~ "Q2",
+    Kmeans == 3 ~ "Q4",
+    Kmeans == 4 ~ "Q1",
+    TRUE ~ as.character(Kmeans)
+  ))
+data_us$Kmeans <- as.factor(data_us$Kmeans)
+ggplot(data_us, aes(x = Zcommunion.x, y = ZMyMidus1Autonomy.x, color = Kmeans)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the US data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+
+```
+JP
+```{r}
+data_jp <- data_jp %>%
+  mutate(Kmeans = case_when(
+    Kmeans == 1 ~ "Q1",
+    Kmeans == 2 ~ "Q4",
+    Kmeans == 3 ~ "Q2",
+    Kmeans == 4 ~ "Q3",
+    TRUE ~ as.character(Kmeans)
+  ))
+data_jp$Kmeans <- as.factor(data_jp$Kmeans)
+ggplot(data_jp, aes(x = Zcommunion.x, y = ZMyMIDJA1_Autonomy.x, color = Kmeans)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the jp data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+
+```
+centers comparison
+```{r}
+comparison_kmeans<-bind_rows(as.data.frame(Kmeans_us$centers) %>% 
+                        mutate(Country = "US")%>%
+                        mutate(Autonomy=ZMyMidus1Autonomy),
+                      as.data.frame(Kmeans_jp$centers) %>% 
+                        mutate(Country = "JP")%>%
+                        mutate(Autonomy=ZMyMIDJA1_Autonomy))%>%
+            select(Zcommunion,Autonomy,Country)
+
+ggplot(comparison_kmeans, aes(x = Zcommunion, y = Autonomy, color = Country)) +
+  geom_point(size = 3) +
+  labs(x = "ZCommunion", y = "ZAutonomy", title = "comparison of centers") +
+  scale_color_manual(values = c("US" = "blue", "JP"="red"))+
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-2, 2)) + 
+  scale_y_continuous(limits = c(-2, 2))   
+```
+
+2)GMM
+US
+```{r}
+data_us <- data_us %>%
+  mutate(GMM = case_when(
+    GMM == 1 ~ "Q4",
+    GMM == 2 ~ "Q1",
+    GMM == 3 ~ "Q2",
+    GMM == 4 ~ "Q3",
+    TRUE ~ as.character(GMM)
+  ))
+data_us$GMM <- as.factor(data_us$GMM)
+ggplot(data_us, aes(x = Zcommunion.x, y = ZMyMidus1Autonomy.x, color = GMM)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "ZCommunion", y = "ZAutonomy", title = "Cluster Analysis in the US data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+
+JP
+```{r}
+data_jp <- data_jp %>%
+  mutate(GMM = case_when(
+    GMM == 1 ~ "Q3",
+    GMM == 2 ~ "Q2",
+    GMM == 3 ~ "Q4",
+    GMM == 4 ~ "Q1",
+    TRUE ~ as.character(GMM)
+  ))
+data_jp$GMM <- as.factor(data_jp$GMM)
+ggplot(data_jp, aes(x = Zcommunion.x, y = ZMyMIDJA1_Autonomy.x, color = GMM)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the JP data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+comparison about centers:
+```{r}
+comparison_gmm<-bind_rows(group_centers <- data_us %>%
+  group_by(GMM) %>%  
+  summarise(
+    Zcommunion = mean(Zcommunion.x, na.rm = TRUE),
+    Autonomy = mean(ZMyMidus1Autonomy.x, na.rm = TRUE)  
+  )%>%
+    mutate(Country = "US")
+,
+                          data_jp %>% 
+                        group_by(GMM) %>%  
+  summarise(
+    Zcommunion = mean(Zcommunion.x, na.rm = TRUE),
+    Autonomy = mean(ZMyMIDJA1_Autonomy.x, na.rm = TRUE)  
+  )%>%
+  mutate(Country = "JP"))
+
+ggplot(comparison_gmm, aes(x = Zcommunion, y = Autonomy, color = Country)) +
+  geom_point(size = 3) +
+  labs(x = "ZCommunion", y = "ZAutonomy", title = "comparison of centers") +
+  scale_color_manual(values = c("US" = "blue", "JP"="red"))+
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-2, 2)) + 
+  scale_y_continuous(limits = c(-2, 2))   
+```
+
+
+
+predict dependent variables
+```{r}
+averages_jp <- data_jp %>%
+  group_by(GMM) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+averages_us <- data_us %>%
+  group_by(GMM) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+```
+data cleaning
+```{r}
+averages_jp_long <- pivot_longer(averages_jp, cols = GMM, names_to = "variable", values_to = "value")
+averages_us_long <- pivot_longer(averages_us, cols = GMM, names_to = "variable", values_to = "value")
+
+averages_jp_long$country <- "JP"
+averages_us_long$country <- "US"
+
+combined_data <- rbind(averages_us_long%>%
+                         select(posMINUSnefaffect,A1SSATIS,A1SPWBG,A1SPWBU,A1SPWBS,value,country),
+                       averages_jp_long%>%
+                         select(posMINUSnefaffect=posMinusnegaffect,A1SSATIS=J1SSATIS,A1SPWBG=J1SPWBG1,A1SPWBU=J1SPWBU1,A1SPWBS=J1SPWBS1,value,country))
+```
+data visualization
+```{r}
+library(reshape2)
+data_long <- melt(combined_data, id.vars = c("value", "country"), variable.name = "variable", value.name = "measurement")
+
+p <- ggplot(data_long, aes(x = factor(value), y = measurement, fill = country)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("US" = "blue", "JP" = "red")) +
+  facet_wrap(~ variable, scales = "free_y") +  
+  labs(x = "Kmeans Clusters", y = "Measurement") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5),
+        strip.text.x = element_text(size = 10, face = "bold"),  # 
+        legend.position = "bottom") 
+
+print(p)
+
+```
+ANOVA test to both datasets
+```{r}
+data_jp$Kmeans <- as.factor(data_jp$Kmeans) 
+data_us$Kmeans <- as.factor(data_us$Kmeans) 
+
+result_A1SSATIS <- aov(A1SSATIS ~ Kmeans +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+result_posMINUSnefaffect <- aov(posMINUSnefaffect ~ Kmeans +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+result_A1SPWBG <- aov(A1SPWBG ~ Kmeans +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+result_A1SPWBU <- aov(A1SPWBU ~ Kmeans +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+result_A1SPWBS <- aov(A1SPWBS ~ Kmeans +A1SCHRON+A1PRAGE_2019+A1PRSEX + A1PB1 + A1SAGREE + A1SEXTRA + A1SNEURO + A1SCONS + A1SOPEN, data = data_us)
+summary(result_posMINUSnefaffect)
+summary(result_A1SSATIS)
+summary(result_A1SPWBG)
+summary(result_A1SPWBU)
+summary(result_A1SPWBS)
+```
+

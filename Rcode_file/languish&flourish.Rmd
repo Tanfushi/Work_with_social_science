@@ -1,0 +1,104 @@
+---
+title: "languish&flourish"
+author: "Tanfu Shi"
+date: "2024-08-30"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+data input
+```{r}
+library(mclust)
+library(tidyLPA)
+library(tidyverse)
+library(haven)
+library(stats)
+data <- haven::read_sav("C:/Users/14946/Downloads/CPRBS_WellbeingSurvey_2024_Draft_May 2024_August 21, 2024_Cleanedwith processing.sav")
+write.csv(data, "C:/Users/14946/Downloads/yourfile.csv", row.names = FALSE)
+```
+data clean
+```{r}
+df$flourishingworkTotal <- as.factor(df$flourishingworkTotal)
+df <- df%>%
+  select(flourishingworkTotal,emotionalBurnout,workengagement,WtF_conflict,Loneliness,PsychDistress,mindlessness_short,job_satis)%>%
+  na.omit(df)
+
+df_long <- df %>%
+  gather(key = "Variable", value = "Value", -flourishingworkTotal)
+
+ggplot(df_long, aes(x = flourishingworkTotal, y = Value, fill = flourishingworkTotal)) +
+  geom_boxplot() +
+  facet_wrap(~ Variable, scales = "free") +
+  theme_minimal() +
+  labs(title = "Distribution of Variables by Flourishing Work Total",
+       x = "Flourishing Work Total",
+       y = "Value") +
+  theme(legend.position = "none")
+```
+random forest
+```{r}
+library(caTools)
+library(randomForest)
+library(party)
+set.seed(100)
+split <- sample.split(df$flourishingworkTotal, SplitRatio = 0.8)
+train_set <- subset(df, split == TRUE)
+test_set <- subset(df, split == FALSE)
+
+model <- randomForest(flourishingworkTotal ~ ., data = train_set, ntree = 100, mtry = 3, importance = TRUE)
+summary(model)
+```
+visualize
+
+```{r}
+predictions <- predict(model, newdata = test_set)
+
+confusion_matrix <- table(test_set$flourishingworkTotal, predictions)
+print(confusion_matrix)
+
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Accuracy: ", accuracy))
+
+importance_df <- as.data.frame(importance(model))
+importance_df$Feature <- rownames(importance_df)
+
+importance_df$PercentImportance <- (importance_df$MeanDecreaseGini / sum(importance_df$MeanDecreaseGini)) * 100
+
+importance_df <- importance_df[order(-importance_df$PercentImportance), ]
+top10_importance_df <- importance_df[1:10, ]
+
+ggplot(top10_importance_df, aes(x = reorder(Feature, PercentImportance), y = PercentImportance)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Top 10 Feature Importances in Random Forest",
+       x = "Features",
+       y = "Importance (%)")
+```
+logistic
+```{r}
+set.seed(100)
+split <- sample.split(df$flourishingworkTotal, SplitRatio = 0.8)
+train_set <- subset(df, split == TRUE)
+test_set <- subset(df, split == FALSE)
+train_set$flourishingworkTotal <- as.factor(train_set$flourishingworkTotal)
+model_logistic <- glm(flourishingworkTotal ~ ., data = train_set, family = binomial)
+summary(model_logistic)
+```
+```{r}
+library(broom)
+
+tidy_model <- tidy(model_logistic, conf.int = TRUE)
+
+ggplot(tidy_model, aes(x = estimate, y = reorder(term, estimate))) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +
+  theme_minimal() +
+  labs(title = "Logistic Regression Coefficients",
+       x = "Coefficient Estimate",
+       y = "Predictor")
+```
+

@@ -1,0 +1,81 @@
+---
+title: "new_version"
+author: "Tanfu Shi"
+date: "2024-09-19"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(mclust)
+library(tidyLPA)
+library(tidyverse)
+library(haven)
+library(stats)
+library(factoextra)
+library(cluster)
+set.seed(100)
+
+
+new_data_communion<- read_sav("C:/Users/14946/Downloads/CPRBS_WellbeingSurvey_2024_September 19, 2024.sav")
+
+# Write the data to a CSV file
+write.csv(new_data_communion, "C:/Users/14946/Downloads/new_data_communion.csv")
+str(new_data_communion$Zworkresources_communion)
+```
+```{r}
+data_elbow<-new_data_communion%>%
+      dplyr::select("Zworkresources_communion","Zworkresources_agency")%>%
+      na.omit()
+fviz_nbclust(data_elbow, kmeans, method = "wss") +
+  geom_vline(xintercept = 4, linetype = 2) + # 假设最佳K值为4
+  labs(subtitle = "Elbow Method")
+```
+```{r}
+sil_width <- numeric(10)
+for (k in 2:10) {  # silhouette_score在n_clusters>1时才有效
+  kmeans_result <- kmeans(data_elbow, centers = k, nstart = 25)
+  sil <- silhouette(kmeans_result$cluster, dist(data_elbow))
+  sil_width[k] <- mean(sil[, 3])
+  cat("Number of clusters:", k, "Average Silhouette Width:", sil_width[k], "\n")
+}
+
+# 使用factoextra包绘制轮廓系数图
+fviz_nbclust(data_elbow, kmeans, method = "silhouette") +
+  labs(subtitle = "Silhouette Method")
+```
+plot
+```{r}
+new_data_communion <- new_data_communion %>%
+  mutate(QCL_1 = case_when(
+    QCL_1 == 1 ~ "Q1",
+    QCL_1 == 2 ~ "Q4",
+    QCL_1 == 3 ~ "Q3",
+    QCL_1 == 4 ~ "Q2",
+    TRUE ~ as.character(QCL_1)
+  ))
+new_data_communion$QCL_1 <- as.factor(new_data_communion$QCL_1)
+ggplot(new_data_communion, aes(x = Zworkresources_communion, y = Zworkresources_agency, color = QCL_1)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the Work resource") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4)) 
+```
+
+

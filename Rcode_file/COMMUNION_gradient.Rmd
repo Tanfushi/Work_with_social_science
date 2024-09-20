@@ -1,0 +1,179 @@
+---
+title: "outcome"
+author: "Tanfu Shi"
+date: "2024-07-11"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+new data set
+```{r}
+library(mclust)
+library(tidyLPA)
+library(tidyverse)
+library(haven)
+library(stats)
+set.seed(100)
+combined_data<-read_sav("C:/Users/14946/Downloads/Midus1&2Merge_Squad_Wellbeing_Tanfu_Data_new.sav")
+family_us1<-combined_data%>%
+  select(ZCommunion_Family_Midus1,ZMyMidus1Autonomy,M2ID)%>%
+  na.omit()
+friends_us1<-combined_data%>%
+  select(ZCommunion_Friends_Midus1,ZMyMidus1Autonomy,M2ID)%>%
+  na.omit()
+spouse_us1<-combined_data%>%
+  select(ZCommunion_Spouse_Midus1,ZMyMidus1Autonomy,M2ID)%>%
+  na.omit()
+family_us2<-combined_data%>%
+  select(ZCommunion_Family_Midus2,ZMyMidus2Autonomy,M2ID)%>%
+  na.omit()
+friends_us2<-combined_data%>%
+  select(ZCommunion_Friends_Midus2,ZMyMidus2Autonomy,M2ID)%>%
+  na.omit()
+spouse_us2<-combined_data%>%
+  select(ZCommunion_Spouse_Midus2,ZMyMidus2Autonomy,M2ID)%>%
+  na.omit()
+
+```
+Kmeans
+```{r}
+set.seed(100) 
+Kmeans_us2_family<-family_us2%>%
+  dplyr::select(ZCommunion_Family_Midus2,ZMyMidus2Autonomy)%>%
+  kmeans(centers = 4, nstart = 25)
+family_us2$cluster<-Kmeans_us2_family$cluster
+```
+plot
+```{r}
+family_us2 <- family_us2 %>%
+  mutate(cluster = case_when(
+    cluster == 1 ~ "Q2",
+    cluster == 2 ~ "Q3",
+    cluster == 3 ~ "Q4",
+    cluster == 4 ~ "Q1",
+    TRUE ~ as.character(cluster)
+  ))
+family_us2$cluster <- as.factor(family_us2$cluster)
+ggplot(family_us2, aes(x = ZCommunion_Family_Midus2, y = ZMyMidus2Autonomy, color = cluster)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the family data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+comparison with all communion
+```{r}
+result<-inner_join(family_us2,data_new,by="M2ID")
+ari_result <- adjustedRandIndex(result$cluster, result$cluster_new)
+print(paste("Adjusted Rand Index: ", ari_result))
+```
+all commnion
+```{r}
+set.seed(100) 
+Kmeans_us2_friend<-friends_us2%>%
+  dplyr::select(ZCommunion_Friends_Midus2,ZMyMidus2Autonomy)%>%
+  kmeans(centers = 4, nstart = 25)
+friends_us2$cluster<-Kmeans_us2_friend$cluster
+
+set.seed(100) 
+Kmeans_us2_spouse<-spouse_us2%>%
+  dplyr::select(ZCommunion_Spouse_Midus2,ZMyMidus2Autonomy)%>%
+  kmeans(centers = 4, nstart = 25)
+spouse_us2$cluster<-Kmeans_us2_spouse$cluster
+
+```
+for friends
+```{r}
+friends_us2 <- friends_us2 %>%
+  mutate(cluster = case_when(
+    cluster == 1 ~ "Q1",
+    cluster == 2 ~ "Q2",
+    cluster == 3 ~ "Q4",
+    cluster == 4 ~ "Q3",
+    TRUE ~ as.character(cluster)
+  ))
+friends_us2$cluster <- as.factor(friends_us2$cluster)
+ggplot(friends_us2, aes(x = ZCommunion_Friends_Midus2, y = ZMyMidus2Autonomy, color = cluster)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the friends data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+check
+```{r}
+result<-inner_join(friends_us2,data_new,by="M2ID")%>%
+    mutate(cluster = case_when(
+    cluster == "Q1" ~ 1,
+    cluster == "Q2" ~ 2,
+    cluster == "Q3" ~ 3,
+    cluster == "Q4" ~ 4,
+    TRUE ~ as.numeric(cluster) 
+  ))%>%
+  mutate(cluster_new = case_when(
+    cluster_new == "Q1" ~ 1,
+    cluster_new == "Q2" ~ 2,
+    cluster_new == "Q3" ~ 3,
+    cluster_new == "Q4" ~ 4,
+    TRUE ~ as.numeric(cluster_new) 
+  ))
+ari_result <- adjustedRandIndex(result$cluster, result$cluster_new)
+print(paste("Adjusted Rand Index: ", ari_result))
+```
+spouse
+```{r}
+spouse_us2 <- spouse_us2 %>%
+  mutate(cluster = case_when(
+    cluster == 1 ~ "Q3",
+    cluster == 2 ~ "Q4",
+    cluster == 3 ~ "Q1",
+    cluster == 4 ~ "Q2",
+    TRUE ~ as.character(cluster)
+  ))
+spouse_us2$cluster <- as.factor(spouse_us2$cluster)
+ggplot(spouse_us2, aes(x = ZCommunion_Spouse_Midus2, y = ZMyMidus2Autonomy, color = cluster)) +
+  geom_point(size = 1) +
+  geom_jitter(width = 0.1, height = 0.1) +  
+  labs(x = "Communion", y = "Autonomy", title = "Cluster Analysis in the spouse data") +
+  scale_color_manual(values = c("Q1" = "red", "Q2" = "green", "Q3" = "blue", "Q4" = "purple")) +
+  theme_gray() +  
+  theme(
+    plot.title = element_text(face = "bold", color = "#333333"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "#EBEBEB"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 12)
+  )  +
+  scale_x_continuous(limits = c(-4, 4)) + 
+  scale_y_continuous(limits = c(-4, 4))   
+```
+```{r}
+result<-inner_join(spouse_us2,data_new,by="M2ID")
+ari_result <- adjustedRandIndex(result$cluster, result$cluster_new)
+print(paste("Adjusted Rand Index: ", ari_result))
+```
+
