@@ -1,0 +1,118 @@
+---
+title: "ASW ELBOW AND SOON"
+author: "Tanfu Shi"
+date: "2024-09-18"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+LOAD DATA
+```{r}
+library(tidyLPA)
+library(tidyverse)
+library(haven)
+library(stats)
+set.seed(100)
+new_version_communion <- read_sav("C:/Users/14946/Downloads/new_version_communion.sav")
+```
+
+
+```{r}
+# Read your dataset
+df <- read_sav("C:/Users/14946/Downloads/CPRBS_WellbeingSurvey_2024_Draft_May 2024_Sept 13, 2024_Cleanedwith processing.sav")
+
+# Include flourishingfamilyTotal and convert both to factors
+df <- df %>%
+  select(flourishingworkTotal, flourishingFamilyTotal, emotionalBurnout, workengagement, WtF_conflict, Loneliness, PsychDistress, mindlessness_short, job_satis) %>%
+  na.omit()
+
+df$flourishingworkTotal <- as.factor(df$flourishingworkTotal)
+df$flourishingfamilyTotal <- as.factor(df$flourishingFamilyTotal)
+
+df$group <- interaction(df$flourishingworkTotal, df$flourishingFamilyTotal, sep = "_")
+
+levels(df$group) <- c("Work 0 - Family 0", "Work 0 - Family 1", "Work 1 - Family 0", "Work 1 - Family 1")
+
+df_long <- df %>%
+  gather(key = "Variable", value = "Value", emotionalBurnout, workengagement, WtF_conflict, Loneliness, PsychDistress, mindlessness_short, job_satis)
+
+ggplot(df_long, aes(x = group, y = Value, fill = group)) +
+  geom_boxplot() +
+  facet_wrap(~ Variable, scales = "free") +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Variables by Flourishing Work and Family Total",
+    x = "Flourishing Work and Family Total",
+    y = "Value"
+  ) +
+  theme(legend.position = "none")
+
+```
+plot
+```{r}
+library(tidyverse)
+library(haven)
+library(stats)
+set.seed(100)
+
+# Read your dataset
+df <- read_sav("C:/Users/14946/Downloads/CPRBS_WellbeingSurvey_2024_Draft_May 2024_Sept 13, 2024_Cleanedwith processing.sav")
+
+# Include flourishingfamilyTotal and convert both to factors
+df <- df %>%
+  select(
+    flourishingworkTotal,
+    flourishingFamilyTotal,
+    emotionalBurnout,
+    workengagement,
+    WtF_conflict,
+    Loneliness,
+    PsychDistress,
+    mindlessness_short,
+    job_satis
+  ) %>%
+  na.omit()
+
+df$flourishingworkTotal <- as.factor(df$flourishingworkTotal)
+df$flourishingfamilyTotal <- as.factor(df$flourishingFamilyTotal)
+
+# Create a new variable that combines both factors
+df$group <- interaction(df$flourishingworkTotal, df$flourishingFamilyTotal, sep = "_")
+
+# Optional: Rename the levels for better readability
+levels(df$group) <- c("Work 0 - Family 0", "Work 0 - Family 1", "Work 1 - Family 0", "Work 1 - Family 1")
+
+# Define the list of outcome variables
+outcome_vars <- c(
+  "emotionalBurnout",
+  "workengagement",
+  "WtF_conflict",
+  "Loneliness",
+  "PsychDistress",
+  "mindlessness_short",
+  "job_satis"
+)
+
+# Loop over outcome variables and create separate plots
+for (var in outcome_vars) {
+  p <- ggplot(df, aes(x = group, y = .data[[var]], fill = group)) +
+    geom_boxplot() +
+    stat_summary(fun = median, geom = "text", aes(label = round(..y.., 2)), vjust = -0.5, color = "black") + 
+    theme_minimal() +
+    labs(
+      title = paste("Distribution of", var, "by Flourishing Work and Family Total"),
+      x = "Flourishing Work and Family Total",
+      y = var
+    ) +
+    theme(legend.position = "none")
+  
+  print(p)
+  
+  # Optionally, save each plot to a file
+  # ggsave(filename = paste0(var, "_boxplot.png"), plot = p, width = 8, height = 6)
+}
+
+```
+
